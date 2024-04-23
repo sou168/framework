@@ -19,6 +19,14 @@ class ViewName
         }
 
         [$namespace, $name] = explode($delimiter, $name);
+        if ($_SERVER['MULTI_VIEW'] && strtolower($_SERVER['MULTI_VIEW']) != 'false') {
+            if ($_SERVER['MULTI_LANG'] && $_SERVER['LANG']) {
+                $name = $_SERVER['LANG']. '.' .$name;
+            }
+        }
+        if ($_SERVER['MULTI_CLIENT_TYPE'] && $_SERVER['CLIENT_TYPE']) {
+            $name .= '.' .$_SERVER['CLIENT_TYPE'];
+        }
 
         return $namespace.$delimiter.str_replace('/', '.', $name);
     }

@@ -27,12 +27,12 @@ class ViewName
     {
         if ( (bool)env('MULTI_VIEW')) {
             if ( env('MULTI_LANG') && $_SERVER['LANG']) {
-                $name = $_SERVER['LANG']. '.' .$name;
+                $name = $_SERVER['LANG'] . '.' . $name;
             }
         }
 
         if ( env('MULTI_CLIENT_TYPE') && $_SERVER['CLIENT_TYPE']) {
-            $name .= '.' .$_SERVER['CLIENT_TYPE'];
+            $name = $_SERVER['CLIENT_TYPE'] . '.' . $name;
         }
 
         return $name;

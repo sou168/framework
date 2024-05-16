@@ -32,9 +32,12 @@ class ViewName
         }
 
         if ( env('MULTI_CLIENT_TYPE') && $_SERVER['CLIENT_TYPE']) {
-            $name = $_SERVER['CLIENT_TYPE'] . '.' . $name;
+            $name = explode('.', $name);
+            array_splice($name, -1, 0, $_SERVER['CLIENT_TYPE']);
+            $name = implode('.', $name);
         }
 
         return $name;
     }
+    
 }

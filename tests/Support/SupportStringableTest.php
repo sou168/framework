@@ -2,16 +2,21 @@
 
 namespace Illuminate\Tests\Support;
 
+use Illuminate\Container\Container;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Stringable;
+use Illuminate\Support\Uri;
 use League\CommonMark\Environment\EnvironmentBuilderInterface;
 use League\CommonMark\Extension\ExtensionInterface;
 use PHPUnit\Framework\TestCase;
 
 class SupportStringableTest extends TestCase
 {
+    protected Container $container;
+
     /**
      * @param  string  $string
      * @return \Illuminate\Support\Stringable
@@ -827,6 +832,38 @@ class SupportStringableTest extends TestCase
         $this->assertFalse($this->stringable('test')->is([]));
     }
 
+    public function testIsWithMultilineStrings()
+    {
+        $this->assertFalse($this->stringable("/\n")->is('/'));
+        $this->assertTrue($this->stringable("/\n")->is('/*'));
+        $this->assertTrue($this->stringable("/\n")->is('*/*'));
+        $this->assertTrue($this->stringable("\n/\n")->is('*/*'));
+
+        $this->assertTrue($this->stringable("\n")->is('*'));
+        $this->assertTrue($this->stringable("\n\n")->is('*'));
+        $this->assertFalse($this->stringable("\n")->is(''));
+        $this->assertFalse($this->stringable("\n\n")->is(''));
+
+        $multilineValue = <<<'VALUE'
+        <?php
+
+        namespace Illuminate\Tests\Support;
+
+        use Exception;
+        VALUE;
+
+        $this->assertTrue($this->stringable($multilineValue)->is($multilineValue));
+        $this->assertTrue($this->stringable($multilineValue)->is('*'));
+        $this->assertTrue($this->stringable($multilineValue)->is("*namespace Illuminate\Tests\*"));
+        $this->assertFalse($this->stringable($multilineValue)->is("namespace Illuminate\Tests\*"));
+        $this->assertFalse($this->stringable($multilineValue)->is("*namespace Illuminate\Tests"));
+        $this->assertTrue($this->stringable($multilineValue)->is('<?php*'));
+        $this->assertTrue($this->stringable($multilineValue)->is("<?php*namespace Illuminate\Tests\*"));
+        $this->assertFalse($this->stringable($multilineValue)->is('use Exception;'));
+        $this->assertFalse($this->stringable($multilineValue)->is('use Exception;*'));
+        $this->assertTrue($this->stringable($multilineValue)->is('*use Exception;'));
+    }
+
     public function testKebab()
     {
         $this->assertSame('laravel-php-framework', (string) $this->stringable('LaravelPhpFramework')->kebab());
@@ -1365,6 +1402,17 @@ class SupportStringableTest extends TestCase
         $this->stringable('not a date')->toDate();
     }
 
+    public function testToUri()
+    {
+        $sentence = 'Laravel is a PHP framework. You can access the docs in: {https://laravel.com/docs}';
+
+        $uri = $this->stringable($sentence)->between('{', '}')->toUri();
+
+        $this->assertInstanceOf(Uri::class, $uri);
+        $this->assertSame('https://laravel.com/docs', (string) $uri);
+        $this->assertSame('https://laravel.com/docs', $uri->toHtml());
+    }
+
     public function testArrayAccess()
     {
         $str = $this->stringable('my string');
@@ -1386,5 +1434,24 @@ class SupportStringableTest extends TestCase
         $this->assertSame('foo', (string) $this->stringable(base64_encode('foo'))->fromBase64());
         $this->assertSame('foobar', (string) $this->stringable(base64_encode('foobar'))->fromBase64(true));
         $this->assertSame('foobarbaz', (string) $this->stringable(base64_encode('foobarbaz'))->fromBase64());
+    }
+
+    public function testHash()
+    {
+        $this->assertSame(hash('xxh3', 'foo'), (string) $this->stringable('foo')->hash('xxh3'));
+        $this->assertSame(hash('xxh3', 'foobar'), (string) $this->stringable('foobar')->hash('xxh3'));
+        $this->assertSame(hash('sha256', 'foobarbaz'), (string) $this->stringable('foobarbaz')->hash('sha256'));
+    }
+
+    public function testEncryptAndDecrypt()
+    {
+        Container::setInstance($this->container = new Container);
+
+        $this->container->bind('encrypter', fn () => new Encrypter(str_repeat('b', 16)));
+
+        $encrypted = $this->stringable('foo')->encrypt();
+
+        $this->assertNotSame('foo', $encrypted->value());
+        $this->assertSame('foo', $encrypted->decrypt()->value());
     }
 }

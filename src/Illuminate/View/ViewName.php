@@ -25,13 +25,11 @@ class ViewName
 
     protected static function fillLangType($name)
     {
-        if ( (bool)env('MULTI_VIEW')) {
-            if ( env('MULTI_LANG') && $_SERVER['LANG']) {
-                $name = $_SERVER['LANG'] . '.' . $name;
-            }
+        if ( (bool)env('MULTI_LANG') && $_SERVER['LANG']) {
+            $name = $_SERVER['LANG'] . '.' . $name;
         }
 
-        if ( env('MULTI_CLIENT_TYPE') && $_SERVER['CLIENT_TYPE']) {
+        if ( (bool)env('MULTI_CLIENT_TYPE') && $_SERVER['CLIENT_TYPE']) {
             $name = explode('.', $name);
             array_splice($name, -1, 0, $_SERVER['CLIENT_TYPE']);
             $name = implode('.', $name);

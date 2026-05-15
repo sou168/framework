@@ -33,11 +33,6 @@ class ConsoleEventSchedulerTest extends TestCase
         $container->instance(Schedule::class, $this->schedule = new Schedule(m::mock(EventMutex::class)));
     }
 
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testMutexCanReceiveCustomStore()
     {
         Container::getInstance()->make(EventMutex::class)->shouldReceive('useStore')->once()->with('test');
@@ -110,6 +105,26 @@ class ConsoleEventSchedulerTest extends TestCase
     {
         $schedule = $this->schedule;
         $schedule->command(ConsoleCommandStub::class, ['--force']);
+
+        $events = $schedule->events();
+        $phpBinary = Application::phpBinary();
+        $artisanBinary = Application::artisanBinary();
+        $this->assertEquals($phpBinary.' '.$artisanBinary.' foo:bar --force', $events[0]->command);
+    }
+
+    public function testCreateNewArtisanCommandUsingCommandClassObject()
+    {
+        $command = new class extends Command
+        {
+            protected $signature = 'foo:bar';
+
+            public function handle()
+            {
+            }
+        };
+
+        $schedule = $this->schedule;
+        $schedule->command($command, ['--force']);
 
         $events = $schedule->events();
         $phpBinary = Application::phpBinary();

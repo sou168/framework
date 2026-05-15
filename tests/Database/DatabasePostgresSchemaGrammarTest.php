@@ -9,6 +9,7 @@ use Illuminate\Database\Schema\Builder;
 use Illuminate\Database\Schema\ForeignIdColumnDefinition;
 use Illuminate\Database\Schema\Grammars\PostgresGrammar;
 use Illuminate\Database\Schema\PostgresBuilder;
+use Illuminate\Tests\Database\Fixtures\Enums\Foo;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -16,11 +17,6 @@ use PHPUnit\Framework\TestCase;
 
 class DatabasePostgresSchemaGrammarTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBasicCreateTable()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -55,6 +51,36 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "embeddings" add column "embedding" vector(384) not null', $statements[0]);
     }
 
+    public function testAddingTsvectorColumn()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'test');
+        $blueprint->tsvector('search_vector');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table "test" add column "search_vector" tsvector not null', $statements[0]);
+    }
+
+    public function testAddingNullableTsvectorColumn()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'test');
+        $blueprint->tsvector('search_vector')->nullable();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table "test" add column "search_vector" tsvector null', $statements[0]);
+    }
+
+    public function testAddingTsvectorColumnWithStoredAs()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'test');
+        $blueprint->tsvector('search_vector')->nullable()->storedAs("to_tsvector('english', coalesce(name, ''))");
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table "test" add column "search_vector" tsvector null generated always as (to_tsvector(\'english\', coalesce(name, \'\'))) stored', $statements[0]);
+    }
+
     public function testCreateTableWithAutoIncrementStartingValue()
     {
         $connection = $this->getConnection();
@@ -69,7 +95,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
 
         $this->assertCount(2, $statements);
         $this->assertSame('create table "users" ("id" serial not null primary key, "email" varchar(255) not null, "name" varchar(255) collate "nb_NO.utf8" not null)', $statements[0]);
-        $this->assertSame('alter sequence users_id_seq restart with 1000', $statements[1]);
+        $this->assertSame("select setval(pg_get_serial_sequence('\"users\"', 'id'), 1000, false)", $statements[1]);
     }
 
     public function testAddColumnsWithMultipleAutoIncrementStartingValue()
@@ -87,8 +113,8 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
             'alter table "users" add column "id" bigserial not null primary key',
             'alter table "users" add column "code" serial not null primary key',
             'alter table "users" add column "name" varchar(255) not null',
-            'alter sequence users_id_seq restart with 100',
-            'alter sequence users_code_seq restart with 200',
+            "select setval(pg_get_serial_sequence('\"users\"', 'id'), 100, false)",
+            "select setval(pg_get_serial_sequence('\"users\"', 'code'), 200, false)",
         ], $statements);
     }
 
@@ -306,6 +332,17 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" add constraint "bar" unique nulls distinct ("foo")', $statements[0]);
     }
 
+    public function testAddingUniqueKeyOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->unique('foo')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(2, $statements);
+        $this->assertSame('create unique index concurrently "users_foo_unique" on "users" ("foo")', $statements[0]);
+        $this->assertSame('alter table "users" add constraint "users_foo_unique" unique using index "users_foo_unique"', $statements[1]);
+    }
+
     public function testAddingIndex()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -324,6 +361,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('create index "baz" on "users" using hash ("foo", "bar")', $statements[0]);
+    }
+
+    public function testAddingIndexOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->index('foo', 'baz')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index concurrently "baz" on "users" ("foo")', $statements[0]);
     }
 
     public function testAddingFulltextIndex()
@@ -356,6 +403,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('create index "users_body_fulltext" on "users" using gin ((to_tsvector(\'spanish\', "body")))', $statements[0]);
     }
 
+    public function testAddingFulltextIndexOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->fulltext('body')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index concurrently "users_body_fulltext" on "users" using gin ((to_tsvector(\'english\', "body")))', $statements[0]);
+    }
+
     public function testAddingFulltextIndexWithFluency()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -376,6 +433,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('create index "geo_coordinates_spatialindex" on "geo" using gist ("coordinates")', $statements[0]);
     }
 
+    public function testAddingSpatialIndexOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'geo');
+        $blueprint->spatialIndex('coordinates')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index concurrently "geo_coordinates_spatialindex" on "geo" using gist ("coordinates")', $statements[0]);
+    }
+
     public function testAddingFluentSpatialIndex()
     {
         $blueprint = new Blueprint($this->getConnection(), 'geo');
@@ -386,6 +453,86 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('create index "geo_coordinates_spatialindex" on "geo" using gist ("coordinates")', $statements[1]);
     }
 
+    public function testAddingSpatialIndexWithOperatorClass()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'geo');
+        $blueprint->spatialIndex('coordinates', 'my_index', 'point_ops');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index "my_index" on "geo" using gist ("coordinates" point_ops)', $statements[0]);
+    }
+
+    public function testAddingSpatialIndexWithOperatorClassMultipleColumns()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'geo');
+        $blueprint->spatialIndex(['coordinates', 'location'], 'my_index', 'point_ops');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index "my_index" on "geo" using gist ("coordinates" point_ops, "location" point_ops)', $statements[0]);
+    }
+
+    public function testAddingSpatialIndexWithOperatorClassOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'geo');
+        $blueprint->spatialIndex('coordinates', 'my_index', 'point_ops')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index concurrently "my_index" on "geo" using gist ("coordinates" point_ops)', $statements[0]);
+    }
+
+    public function testAddingVectorIndex()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'posts');
+        $blueprint->vectorIndex('embeddings');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index "posts_embeddings_vectorindex" on "posts" using hnsw ("embeddings" vector_cosine_ops)', $statements[0]);
+    }
+
+    public function testAddingVectorIndexOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'posts');
+        $blueprint->vectorIndex('embeddings')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index concurrently "posts_embeddings_vectorindex" on "posts" using hnsw ("embeddings" vector_cosine_ops)', $statements[0]);
+    }
+
+    public function testAddingVectorIndexWithName()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'posts');
+        $blueprint->vectorIndex('embeddings', 'my_vector_index');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index "my_vector_index" on "posts" using hnsw ("embeddings" vector_cosine_ops)', $statements[0]);
+    }
+
+    public function testAddingFluentVectorIndex()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'posts');
+        $blueprint->vector('embeddings', 1536)->vectorIndex();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(2, $statements);
+        $this->assertSame('create index "posts_embeddings_vectorindex" on "posts" using hnsw ("embeddings" vector_cosine_ops)', $statements[1]);
+    }
+
+    public function testAddingFluentIndexOnVectorColumn()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'posts');
+        $blueprint->vector('embeddings', 1536)->index();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(2, $statements);
+        $this->assertSame('create index "posts_embeddings_vectorindex" on "posts" using hnsw ("embeddings" vector_cosine_ops)', $statements[1]);
+    }
+
     public function testAddingRawIndex()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -394,6 +541,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('create index "raw_index" on "users" ((function(column)))', $statements[0]);
+    }
+
+    public function testAddingRawIndexOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->rawIndex('(function(column))', 'raw_index')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index concurrently "raw_index" on "users" ((function(column)))', $statements[0]);
     }
 
     public function testAddingIncrementingID()
@@ -698,10 +855,12 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->enum('role', ['member', 'admin']);
+        $blueprint->enum('status', Foo::cases());
         $statements = $blueprint->toSql();
 
-        $this->assertCount(1, $statements);
+        $this->assertCount(2, $statements);
         $this->assertSame('alter table "users" add column "role" varchar(255) check ("role" in (\'member\', \'admin\')) not null', $statements[0]);
+        $this->assertSame('alter table "users" add column "status" varchar(255) check ("status" in (\'bar\')) not null', $statements[1]);
     }
 
     public function testAddingDate()
@@ -882,7 +1041,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertCount(2, $statements);
         $this->assertSame([
             'alter table "users" add column "foo" integer null',
-            'alter table "users" add column "bar" boolean not null generated always as (foo is not null)',
+            'alter table "users" add column "bar" boolean not null generated always as (foo is not null) virtual',
         ], $statements);
 
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -892,7 +1051,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertCount(2, $statements);
         $this->assertSame([
             'alter table "users" add column "foo" integer null',
-            'alter table "users" add column "bar" boolean not null generated always as (foo is not null)',
+            'alter table "users" add column "bar" boolean not null generated always as (foo is not null) virtual',
         ], $statements);
     }
 

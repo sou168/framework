@@ -2,9 +2,13 @@
 
 namespace Illuminate\Tests\Integration\Queue;
 
+use Illuminate\Contracts\Database\ModelIdentifier;
+use Illuminate\Database\Eloquent\Attributes\Boot;
+use Illuminate\Database\Eloquent\Attributes\Initialize;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Pivot;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Attributes\WithoutRelations;
@@ -65,6 +69,15 @@ class ModelSerializationTest extends TestCase
             $table->unsignedInteger('user_id');
             $table->unsignedInteger('role_id');
         });
+    }
+
+    #[\Override]
+    protected function tearDown(): void
+    {
+        Relation::morphMap([], false);
+        ModelIdentifier::useMorphMap(false);
+
+        parent::tearDown();
     }
 
     public function testItSerializeUserOnDefaultConnection()
@@ -210,16 +223,26 @@ class ModelSerializationTest extends TestCase
         $model = new ModelBootTestWithTraitInitialization();
 
         $this->assertTrue($model->fooBar);
+        $this->assertTrue($model->initializedViaAttributeInClass);
+        $this->assertTrue($model->initializedViaAttributeInTrait);
         $this->assertTrue($model::hasGlobalScope('foo_bar'));
+        $this->assertTrue($model::hasGlobalScope('booted_attr_in_class'));
+        $this->assertTrue($model::hasGlobalScope('booted_attr_in_trait'));
 
         $model::clearBootedModels();
 
         $this->assertFalse($model::hasGlobalScope('foo_bar'));
+        $this->assertFalse($model::hasGlobalScope('booted_attr_in_class'));
+        $this->assertFalse($model::hasGlobalScope('booted_attr_in_trait'));
 
         $unSerializedModel = unserialize(serialize($model));
 
         $this->assertFalse($unSerializedModel->fooBar);
+        $this->assertFalse($unSerializedModel->initializedViaAttributeInClass);
+        $this->assertFalse($unSerializedModel->initializedViaAttributeInTrait);
         $this->assertTrue($model::hasGlobalScope('foo_bar'));
+        $this->assertTrue($model::hasGlobalScope('booted_attr_in_class'));
+        $this->assertTrue($model::hasGlobalScope('booted_attr_in_trait'));
     }
 
     /**
@@ -398,10 +421,69 @@ class ModelSerializationTest extends TestCase
 
         $this->assertTrue(true);
     }
+
+    #[WithConfig('database.default', 'testing')]
+    public function test_it_users_morphmap_for_serialization()
+    {
+        Relation::morphMap([
+            'user' => User::class,
+        ]);
+        ModelIdentifier::useMorphMap();
+
+        $user = User::create([
+            'email' => 'taylor@laravel.com',
+        ]);
+
+        $serialized = serialize(new ModelSerializationAttributeTargetsClassTestClass(
+            $user,
+            new DataValueObject('hello')
+        ));
+
+        $this->assertSame(
+            'O:83:"Illuminate\Tests\Integration\Queue\ModelSerializationAttributeTargetsClassTestClass":2:{s:4:"user";O:45:"Illuminate\Contracts\Database\ModelIdentifier":5:{s:5:"class";s:4:"user";s:2:"id";i:1;s:9:"relations";a:0:{}s:10:"connection";s:7:"testing";s:15:"collectionClass";N;}s:5:"value";O:50:"Illuminate\Tests\Integration\Queue\DataValueObject":1:{s:5:"value";s:5:"hello";}}',
+            $serialized
+        );
+
+        /** @var ModelSerializationAttributeTargetsClassTestClass $unserialized */
+        $unserialized = unserialize($serialized);
+
+        $this->assertTrue($unserialized->user->is($user));
+    }
+
+    #[WithConfig('database.default', 'testing')]
+    public function test_it_users_morphmap_for_serialization_of_collection()
+    {
+        Relation::morphMap([
+            'user' => User::class,
+        ]);
+
+        ModelIdentifier::useMorphMap();
+
+        $user = User::create([
+            'email' => 'taylor@laravel.com',
+        ]);
+
+        $serialized = serialize(new CollectionSerializationTestClass(
+            new Collection([$user]),
+        ));
+
+        $this->assertSame(
+            'O:67:"Illuminate\Tests\Integration\Queue\CollectionSerializationTestClass":1:{s:5:"users";O:45:"Illuminate\Contracts\Database\ModelIdentifier":5:{s:5:"class";s:4:"user";s:2:"id";a:1:{i:0;i:1;}s:9:"relations";a:0:{}s:10:"connection";s:7:"testing";s:15:"collectionClass";N;}}',
+            $serialized
+        );
+
+        /** @var CollectionSerializationTestClass $unserialized */
+        $unserialized = unserialize($serialized);
+
+        $this->assertInstanceOf(Collection::class, $unserialized->users);
+        $this->assertTrue($unserialized->users->sole()->is($user));
+    }
 }
 
 trait TraitBootsAndInitializersTest
 {
+    public bool $initializedViaAttributeInTrait = false;
+
     public $fooBar = false;
 
     public function initializeTraitBootsAndInitializersTest()
@@ -414,11 +496,41 @@ trait TraitBootsAndInitializersTest
         static::addGlobalScope('foo_bar', function () {
         });
     }
+
+    #[Boot]
+    public static function nonConventionalBootFunctionInTrait()
+    {
+        static::addGlobalScope('booted_attr_in_trait', function () {
+        });
+    }
+
+    #[Initialize]
+    public function nonConventionalInitFunctionInTrait()
+    {
+        $this->initializedViaAttributeInTrait = ! $this->initializedViaAttributeInTrait;
+    }
 }
 
 class ModelBootTestWithTraitInitialization extends Model
 {
     use TraitBootsAndInitializersTest;
+
+    public static bool $bootedViaAttributeInClass = false;
+
+    public bool $initializedViaAttributeInClass = false;
+
+    #[Boot]
+    public static function nonConventionalBootFunctionInClass()
+    {
+        static::addGlobalScope('booted_attr_in_class', function () {
+        });
+    }
+
+    #[Initialize]
+    public function nonConventionalInitFunctionInClass()
+    {
+        $this->initializedViaAttributeInClass = ! $this->initializedViaAttributeInClass;
+    }
 }
 
 class ModelSerializationTestUser extends Model

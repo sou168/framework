@@ -386,6 +386,21 @@ class RoutingRouteTest extends TestCase
         unset($_SERVER['__middleware.group']);
     }
 
+    public function testMiddlewareGroupsCannotReferenceItself()
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('[web] middleware group is referencing itself.');
+
+        $router = $this->getRouter();
+        $router->get('foo/bar', ['middleware' => 'web', function () {
+            return 'hello';
+        }]);
+
+        $router->middlewareGroup('web', ['web']);
+
+        $router->dispatch(Request::create('foo/bar', 'GET'));
+    }
+
     public function testFluentRouteNamingWithinAGroup()
     {
         $router = $this->getRouter();
@@ -2218,6 +2233,15 @@ class RoutingRouteTest extends TestCase
 
         $this->assertEquals([
             'can:create',
+        ], $route->middleware());
+
+        $route = new Route(['GET'], '/', []);
+        $route->can('create');
+        $route->can('update');
+
+        $this->assertEquals([
+            'can:create',
+            'can:update',
         ], $route->middleware());
     }
 

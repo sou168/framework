@@ -18,12 +18,6 @@ class SupportTestingEventFakeTest extends TestCase
         $this->fake = new EventFake(m::mock(Dispatcher::class));
     }
 
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        m::close();
-    }
-
     public function testAssertDispatched()
     {
         try {
@@ -70,10 +64,25 @@ class SupportTestingEventFakeTest extends TestCase
             $this->fake->assertDispatched(EventStub::class, 1);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\EventStub] event was dispatched 2 times instead of 1 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\EventStub] event was dispatched 2 times instead of 1 time.', $e->getMessage());
         }
 
         $this->fake->assertDispatched(EventStub::class, 2);
+    }
+
+    public function testAssertDispatchedOnce()
+    {
+        $this->fake->dispatch(EventStub::class);
+        $this->fake->dispatch(EventStub::class);
+
+        try {
+            $this->fake->assertDispatchedOnce(EventStub::class);
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\EventStub] event was dispatched 2 times instead of 1 time.', $e->getMessage());
+        }
+
+        $this->fake->assertDispatchedTimes(EventStub::class, 2);
     }
 
     public function testAssertDispatchedTimes()
@@ -85,7 +94,7 @@ class SupportTestingEventFakeTest extends TestCase
             $this->fake->assertDispatchedTimes(EventStub::class, 1);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\EventStub] event was dispatched 2 times instead of 1 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\EventStub] event was dispatched 2 times instead of 1 time.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedTimes(EventStub::class, 2);

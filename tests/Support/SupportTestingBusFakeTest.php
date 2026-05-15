@@ -26,12 +26,6 @@ class SupportTestingBusFakeTest extends TestCase
         $this->fake = new BusFake(m::mock(QueueingDispatcher::class));
     }
 
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        m::close();
-    }
-
     public function testItUsesCustomBusRepository()
     {
         $busRepository = new BatchRepositoryFake;
@@ -146,7 +140,7 @@ class SupportTestingBusFakeTest extends TestCase
             $this->fake->assertDispatched(BusJobStub::class, 1);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 time.', $e->getMessage());
         }
 
         $this->fake->assertDispatched(BusJobStub::class, 2);
@@ -161,7 +155,7 @@ class SupportTestingBusFakeTest extends TestCase
             $this->fake->assertDispatchedAfterResponse(BusJobStub::class, 1);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 time.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedAfterResponse(BusJobStub::class, 2);
@@ -176,7 +170,7 @@ class SupportTestingBusFakeTest extends TestCase
             $this->fake->assertDispatchedSync(BusJobStub::class, 1);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was synchronously pushed 2 times instead of 1 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was synchronously pushed 2 times instead of 1 time.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedSync(BusJobStub::class, 2);
@@ -240,7 +234,7 @@ class SupportTestingBusFakeTest extends TestCase
             }, 2);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\OtherBusJobStub] job was pushed 1 times instead of 2 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\OtherBusJobStub] job was pushed 1 time instead of 2 times.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedAfterResponseTimes(function (OtherBusJobStub $job) {
@@ -275,6 +269,21 @@ class SupportTestingBusFakeTest extends TestCase
         });
     }
 
+    public function testAssertDispatchedOnce()
+    {
+        $this->fake->dispatch(new BusJobStub);
+        $this->fake->dispatchNow(new BusJobStub);
+
+        try {
+            $this->fake->assertDispatchedOnce(BusJobStub::class);
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 time.', $e->getMessage());
+        }
+
+        $this->fake->assertDispatchedTimes(BusJobStub::class, 2);
+    }
+
     public function testAssertDispatchedTimes()
     {
         $this->fake->dispatch(new BusJobStub);
@@ -284,7 +293,7 @@ class SupportTestingBusFakeTest extends TestCase
             $this->fake->assertDispatchedTimes(BusJobStub::class, 1);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 time.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedTimes(BusJobStub::class, 2);
@@ -302,7 +311,7 @@ class SupportTestingBusFakeTest extends TestCase
             }, 2);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\OtherBusJobStub] job was pushed 1 times instead of 2 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\OtherBusJobStub] job was pushed 1 time instead of 2 times.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedTimes(function (OtherBusJobStub $job) {
@@ -323,7 +332,7 @@ class SupportTestingBusFakeTest extends TestCase
             $this->fake->assertDispatchedAfterResponseTimes(BusJobStub::class, 1);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was pushed 2 times instead of 1 time.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedAfterResponseTimes(BusJobStub::class, 2);
@@ -338,7 +347,7 @@ class SupportTestingBusFakeTest extends TestCase
             $this->fake->assertDispatchedSyncTimes(BusJobStub::class, 1);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was synchronously pushed 2 times instead of 1 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\BusJobStub] job was synchronously pushed 2 times instead of 1 time.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedSyncTimes(BusJobStub::class, 2);
@@ -356,7 +365,7 @@ class SupportTestingBusFakeTest extends TestCase
             }, 2);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\OtherBusJobStub] job was synchronously pushed 1 times instead of 2 times.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Illuminate\Tests\Support\OtherBusJobStub] job was synchronously pushed 1 time instead of 2 times.', $e->getMessage());
         }
 
         $this->fake->assertDispatchedSyncTimes(function (OtherBusJobStub $job) {
@@ -838,6 +847,132 @@ class SupportTestingBusFakeTest extends TestCase
         $serializingBusFake->assertBatched(function (PendingBatchFake $batchedCollection) {
             return $batchedCollection->jobs->count() === 1 && $batchedCollection->jobs->first()->value === 'hello';
         });
+    }
+
+    public function testCanAssertJobsOnPendingBatchFake()
+    {
+        $this->fake->batch([
+            new BusFakeJobWithSerialization('foo'),
+            new BusFakeJobWithSerialization('bar'),
+            new BusFakeJobWithSerialization('baz'),
+        ])->dispatch();
+
+        $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+            return $batchedCollection->hasJobs([
+                new BusFakeJobWithSerialization('foo'),
+                new BusFakeJobWithSerialization('bar'),
+                new BusFakeJobWithSerialization('baz'),
+            ]);
+        });
+
+        $this->fake->assertBatched([
+            new BusFakeJobWithSerialization('foo'),
+            new BusFakeJobWithSerialization('bar'),
+            new BusFakeJobWithSerialization('baz'),
+        ]);
+
+        try {
+            $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+                return $batchedCollection->hasJobs([
+                    new BusFakeJobWithSerialization('baz'),
+                    new BusFakeJobWithSerialization('foo'),
+                    new BusFakeJobWithSerialization('bar'),
+                ]);
+            });
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected batch was not dispatched.', $e->getMessage());
+        }
+
+        try {
+            $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+                return $batchedCollection->hasJobs([
+                    new BusFakeJobWithSerialization('foo'),
+                    new BusFakeJobWithSerialization('baaar'),
+                    new BusFakeJobWithSerialization('baz'),
+                ]);
+            });
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected batch was not dispatched.', $e->getMessage());
+        }
+
+        try {
+            $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+                return $batchedCollection->hasJobs([
+                    new BusFakeJobWithSerialization('foo'),
+                    new BusFakeJobWithSerialization('baz'),
+                ]);
+            });
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected batch was not dispatched.', $e->getMessage());
+        }
+
+        try {
+            $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+                return $batchedCollection->hasJobs([
+                    new BusFakeJobWithSerialization('foo'),
+                    new BusFakeJobWithSerialization('bar'),
+                    new BusFakeJobWithSerialization('baz'),
+                    new BusFakeJobWithSerialization('qux'),
+                ]);
+            });
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected batch was not dispatched.', $e->getMessage());
+        }
+    }
+
+    public function testCanAssertJobsOnPendingBatchFakeWithClosures()
+    {
+        $this->fake->batch([
+            new BusFakeJobWithSerialization('foo'),
+            new BusFakeJobWithSerialization('bar'),
+            new BusFakeJobWithSerialization('baz'),
+        ])->dispatch();
+
+        $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+            return $batchedCollection->hasJobs([
+                fn (BusFakeJobWithSerialization $job) => $job->value === 'foo',
+                fn (BusFakeJobWithSerialization $job) => $job->value === 'bar',
+                fn (BusFakeJobWithSerialization $job) => $job->value === 'baz',
+            ]);
+        });
+
+        $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+            return $batchedCollection->hasJobs([
+                fn (BusFakeJobWithSerialization $job) => $job->value === 'foo',
+                BusFakeJobWithSerialization::class,
+                new BusFakeJobWithSerialization('baz'),
+            ]);
+        });
+
+        try {
+            $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+                return $batchedCollection->hasJobs([
+                    fn (BusFakeJobWithSerialization $job) => $job->value === 'foo',
+                    fn (BusFakeJobWithSerialization $job) => $job->value === 'wrong',
+                    fn (BusFakeJobWithSerialization $job) => $job->value === 'baz',
+                ]);
+            });
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected batch was not dispatched.', $e->getMessage());
+        }
+
+        try {
+            $this->fake->assertBatched(function (PendingBatchFake $batchedCollection) {
+                return $batchedCollection->hasJobs([
+                    fn (BusFakeJobWithSerialization $job) => $job->value === 'foo',
+                    fn (BusJobStub $job) => true,
+                    fn (BusFakeJobWithSerialization $job) => $job->value === 'baz',
+                ]);
+            });
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected batch was not dispatched.', $e->getMessage());
+        }
     }
 }
 
